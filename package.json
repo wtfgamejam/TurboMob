@@ -1,0 +1,19 @@
+{
+  "name": "starving-snake",
+  "version": "0.1.0",
+  "description": "Starving Snakes",
+  "main": "index.js",
+  "repository": "http://github.com/mdthorpe/starving-snakes",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Mike Thorpe",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.13.4"
+  },
+  "devDependencies": {
+    "http-server": "^0.9.0",
+    "nodemon": "^1.9.2"
+  }
+}
