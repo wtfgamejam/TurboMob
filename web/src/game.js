@@ -1,4 +1,4 @@
-var game = new Phaser.Game(800, 600, Phaser.AUTO, 'phaser-example', {
+var game = new Phaser.Game(1400, 980, Phaser.AUTO, 'phaser-example', {
     preload: preload,
     create: create,
     update: update,
@@ -14,9 +14,21 @@ function preload() {
     game.load.image('fire1', 'assets/particles/fire1.png');
     game.load.image('fire2', 'assets/particles/fire2.png');
     game.load.image('fire3', 'assets/particles/fire3.png');
+
+    game.load.spritesheet('controller-indicator', 'assets/sprites/controller-indicator.png', 16, 16);
 }
 
-var car;
+var pad1;
+var pad2;
+
+var indicator1;
+var indicator2;
+
+var player1;
+var player2;
+
+var players = [player1, player2];
+
 var field;
 var cursors;
 
@@ -34,34 +46,33 @@ var isKickingRight = false;
 var kickEndRotation;
 
 function create() {
+    game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
+    game.scale.pageAlignHorizontally = true;
+    game.scale.pageAlignVertically = true;
 
     game.world.setBounds(0, 0, 1400, 980);
 
     game.physics.startSystem(Phaser.Physics.P2JS);
 
-    field = game.add.tileSprite(0, 0, 800, 600, 'field');
+    field = game.add.tileSprite(0, 0, 1400, 980, 'field');
     field.fixedToCamera = true;
 
-    // Shadow
-    shadow = game.add.sprite(300, 300, 'car');
-    shadow.anchor.set(0.5, 0.2);
-    shadow.tint = 0x000000;
-    shadow.alpha = 0.8;
+    game.input.gamepad.start();
 
-    // Car
-    car = game.add.sprite(300, 300, 'car');
-    car.scale.setTo(1, 1.5);
+    indicator1 = game.add.sprite(32, 64, 'controller-indicator');
+    indicator1.scale.x = indicator1.scale.y = 2;
+    indicator1.animations.frame = 1;
 
-    game.physics.p2.enable(car, true);
-    car.body.clearShapes();
-    car.anchor.setTo(.5, .2);
-    car.body.addRectangle(32, 48, 0, 16);
+    indicator2 = game.add.sprite(1340, 64, 'controller-indicator');
+    indicator2.scale.x = indicator2.scale.y = 2;
+    indicator2.animations.frame = 1;
 
-    car.body.damping = 0.95;
-    car.body.angularDamping = 0.95;
 
-    game.camera.follow(car);
-
+    player1 = new Car({
+        x: 300,
+        y: 490
+    }, game.input.gamepad.pad1);
+    
     // Ball
     ball = game.add.sprite(700, 490, 'ball');
     ball.scale.setTo(0.8, 0.8);
@@ -70,46 +81,17 @@ function create() {
     ball.body.clearShapes();
     ball.body.addCircle(18);
 
-    ball.body.mass = 0.2;
-
+    ball.body.mass = 0.5;
 
     // Collisions
     var ballMaterial = game.physics.p2.createMaterial('ballMaterial', ball.body);
-    var carMaterial = game.physics.p2.createMaterial('carMaterial', car.body);
     var worldMaterial = game.physics.p2.createMaterial('worldMaterial');
 
-    //  4 trues = the 4 faces of the world in left, right, top, bottom order
     game.physics.p2.setWorldMaterial(worldMaterial, true, true, true, true);
-
-    //  Here is the contact material. It's a combination of 2 materials, so whenever shapes with
-    //  those 2 materials collide it uses the following settings.
-    //  A single material can be used by as many different sprites as you like.
     var ballVsWorld = game.physics.p2.createContactMaterial(ballMaterial, worldMaterial);
-    var ballVsCar = game.physics.p2.createContactMaterial(ballMaterial, carMaterial);
 
-    ballVsWorld.friction = 1.0; // Friction to use in the contact of these two materials.
-    ballVsWorld.restitution = 0.75; // Restitution (i.e. how bouncy it is!) to use in the contact of these two materials.
-    ballVsCar.restitution = 0.5; // Restitution (i.e. how bouncy it is!) to use in the contact of these two materials.
-
-    // Keys
-    kickLeftKey = game.input.keyboard.addKey(Phaser.Keyboard.X);
-    kickRightKey = game.input.keyboard.addKey(Phaser.Keyboard.Z);
-    boostKey = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
-    cursors = game.input.keyboard.createCursorKeys();
-
-    kickLeftKey.onDown.add(kickLeft);
-    kickRightKey.onDown.add(kickRight);
-
-    // Rocket Trail
-    emitter = game.add.emitter(game.world.centerX, 500, 200);
-    emitter.makeParticles(['fire1', 'fire2', 'fire3']);
-
-    emitter.setRotation(0, 0);
-    emitter.setAlpha(0.7, 0.2);
-    emitter.setScale(0.8, 0, 0.8, 0, 3000);
-    emitter.gravity = 0;
-
-    emitter.start(false, 250, 50);
+    ballVsWorld.friction = 1.0;
+    ballVsWorld.restitution = 0.75;
 
     // Boost Meter
     bmd = this.game.add.bitmapData(300, 40);
@@ -141,59 +123,51 @@ function create() {
 
 function update() {
 
-    shadow.x = car.x + offset.x;
-    shadow.y = car.y + offset.y;
-    emitter.x = car.x;
-    emitter.y = car.y;
-    shadow.rotation = car.rotation;
-    emitter.on = false
-
-    thrust = 600;
-    isBoosting = false;
-
-    if (boostKey.isDown) {
-        if (totalBoost > 0) {
-            emitter.on = true;
-            totalBoost = totalBoost; // -1;
-            boostMeter.width = totalBoost;
-            isBoosting = true;
-
-            thrust = 1800;
-
-        } else {
-            thrust = 900;
-        }
+    // Pad "connected or not" indicator
+    if (game.input.gamepad.supported && game.input.gamepad.active && game.input.gamepad.pad1.connected) {
+        indicator1.animations.frame = 0;
+    } else {
+        indicator1.animations.frame = 1;
+    }
+    if (game.input.gamepad.supported && game.input.gamepad.active && game.input.gamepad.pad2.connected) {
+        indicator2.animations.frame = 0;
+    } else {
+        indicator2.animations.frame = 1;
     }
 
-    if (!isKickingLeft && !isKickingRight) {
-        if (cursors.left.isDown) {
-            car.body.rotateLeft(100);
-        } else if (cursors.right.isDown) {
-            car.body.rotateRight(100);
-        } else {
-            car.body.setZeroRotation();
-        }
+    player1.update();
 
-        if (cursors.up.isDown || isBoosting) {
-            car.body.thrust(thrust);
-        } else if (cursors.down.isDown) {
-            car.body.reverse(thrust);
-        }
-    }
 
-    if (isKickingRight) {
-        car.body.rotateRight(500);
-        if (car.rotation > kickEndRotation) {
-            isKickingRight = false;
-        }
-    }
 
-    if (isKickingLeft) {
-        car.body.rotateLeft(500);
-        if (car.rotation < kickEndRotation) {
-            isKickingLeft = false;
-        }
-    }
+    // if (!isKickingLeft && !isKickingRight) {
+    //     if (cursors.left.isDown) {
+    //         car.body.rotateLeft(100);
+    //     } else if (cursors.right.isDown) {
+    //         car.body.rotateRight(100);
+    //     } else {
+    //         car.body.setZeroRotation();
+    //     }
+
+    //     if (cursors.up.isDown || isBoosting) {
+    //         car.body.thrust(thrust);
+    //     } else if (cursors.down.isDown) {
+    //         car.body.reverse(thrust);
+    //     }
+    // }
+
+    // if (isKickingRight) {
+    //     car.body.rotateRight(500);
+    //     if (car.rotation > kickEndRotation) {
+    //         isKickingRight = false;
+    //     }
+    // }
+
+    // if (isKickingLeft) {
+    //     car.body.rotateLeft(500);
+    //     if (car.rotation < kickEndRotation) {
+    //         isKickingLeft = false;
+    //     }
+    // }
 
     if (!game.camera.atLimit.x) {
         field.tilePosition.x -= (car.body.velocity.x * game.time.physicsElapsed);
@@ -204,24 +178,104 @@ function update() {
     }
 }
 
-function kickRight() {
-    if (!isKickingRight) {
-        kickEndRotation = (car.rotation) + Math.PI * 2;
-        isKickingRight = true;
-    }
-}
-
-function kickLeft() {
-    if (!isKickingLeft) {
-        kickEndRotation = (car.rotation) - Math.PI * 2;
-        isKickingLeft = true;
-    }
-}
 
 function render() {
 
-    // game.debug.text("Duration: " + isKickingLeft, 32, 32);
+    game.debug.text("Thrust: " + player1.thrust, 32, 32);
     // game.debug.text("Rotation: " + car.rotation, 32, 64);
     // game.debug.text("EndRotation: " + kickEndRotation, 32, 84);
 
+}
+
+function Car(startPosition, controller) {
+
+
+    function addButtons() {
+        leftTriggerButton = this.controller.getButton(Phaser.Gamepad.XBOX360_LEFT_TRIGGER);
+        console.log(leftTriggerButton);
+    }
+
+    this.controller = controller;
+    this.controller.addCallbacks(this, { onConnect: addButtons });
+
+    // Shadow
+    this.shadow = game.add.sprite(startPosition.x, startPosition.y, 'car');
+    this.shadow.anchor.set(0.5, 0.2);
+    this.shadow.tint = 0x000000;
+    this.shadow.alpha = 0.8;
+
+    // Car
+    this.car = game.add.sprite(startPosition.x, startPosition.y, 'car');
+    this.car.scale.setTo(1, 1.5);
+
+    game.physics.p2.enable(this.car, true);
+
+    this.car.body.damping = 0.95;
+    this.car.body.angularDamping = 0.95;
+
+    // Rocket Trail
+    this.emitter = game.add.emitter(game.world.centerX, 500, 200);
+    this.emitter.makeParticles(['fire1', 'fire2', 'fire3']);
+
+    this.emitter.setRotation(0, 0);
+    this.emitter.setAlpha(0.7, 0.2);
+    this.emitter.setScale(0.8, 0, 0.8, 0, 3000);
+    this.emitter.gravity = 0;
+
+    this.emitter.start(false, 250, 50);
+    this.emitter.on = false;
+
+    this.thrust = 0;
+    this.totalBoost = 280;
+
+    this.kickRight = function() {
+        if (!this.isKickingRight) {
+            this.kickEndRotation = (this.car.rotation) + Math.PI * 2;
+            this.isKickingRight = true;
+        }
+    }
+
+    this.kickLeft = function() {
+        if (!this.isKickingLeft) {
+            this.kickEndRotation = (this.car.rotation) - Math.PI * 2;
+            this.isKickingLeft = true;
+        }
+    }
+
+    this.rightBumper = this.controller.getButton(Phaser.Gamepad.XBOX360_RIGHT_BUMPER);
+    this.leftBumper = this.controller.getButton(Phaser.Gamepad.XBOX360_LEFT_BUMPER);
+    // this.rightBumper.onDown.add(this.kickRight);
+    // this.leftBumper.onDown.add(this.kickLeft);
+
+    this.update = function() {
+
+        this.thrust = 900;
+        this.shadow.x = this.car.x;
+        this.shadow.y = this.car.y;
+        this.shadow.rotation = this.car.rotation;
+
+        this.emitter.x = this.car.x;
+        this.emitter.y = this.car.y;
+
+        this.emitter.on = false;
+
+        if (this.controller.isDown(Phaser.Gamepad.XBOX360_DPAD_LEFT) || this.controller.axis(Phaser.Gamepad.XBOX360_STICK_LEFT_X) < -0.1) {
+            this.car.body.rotateLeft(100);
+        }
+        if (this.controller.isDown(Phaser.Gamepad.XBOX360_DPAD_RIGHT) || this.controller.axis(Phaser.Gamepad.XBOX360_STICK_LEFT_X) > 0.1) {
+            this.car.body.rotateRight(100);
+        }
+        if (this.controller.isDown(Phaser.Gamepad.XBOX360_A)) {
+            if (this.totalBoost > 0) {
+                this.emitter.on = true;
+                this.totalBoost = this.totalBoost; // -1;
+                //this.boostMeter.width = this.totalBoost;
+                isBoosting = true;
+                this.thrust = 1800;
+            }
+        }
+        if (this.controller.isDown(Phaser.Gamepad.XBOX360_RIGHT_TRIGGER)){
+            this.car.body.thrust(this.thrust)
+        }
+    }
 }
