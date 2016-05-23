@@ -10,7 +10,8 @@ function preload() {
     game.load.image('field', 'assets/background/soccer_field.jpg');
     game.load.image('car', 'assets/sprites/car.png');
     game.load.image('ball', 'assets/sprites/steel-ball.png');
-    game.load.image('goal', 'assets/sprites/goal.png');
+    game.load.image('goalPosts', 'assets/sprites/goalPosts.png');
+    game.load.image('goalArea', 'assets/sprites/goalArea.png');
 
     game.load.image('fire1', 'assets/particles/fire1.png');
     game.load.image('fire2', 'assets/particles/fire2.png');
@@ -19,7 +20,7 @@ function preload() {
     game.load.audio('engineLoop', 'assets/sound/engine-loop.wav');
     game.load.audio('boost', 'assets/sound/boost.wav');
 
-    this.game.load.physics('goal', 'assets/physics/goal.json');
+    this.game.load.physics('goalPosts', 'assets/physics/goalPosts.json');
 
     game.load.spritesheet('controller-indicator', 'assets/sprites/controller-indicator.png', 16, 16);
 }
@@ -65,15 +66,44 @@ function create() {
 
     game.input.gamepad.start();
 
-    player1 = new Car({
+    game.physics.p2.restitution = 0.8;
+
+    playerCollisionGroup = game.physics.p2.createCollisionGroup();
+    goalCollisionGroup = game.physics.p2.createCollisionGroup();
+
+    // GOALS
+
+    var goal1 = new Goal({
+        x: 60,
+        y: game.world.centerY - 3,
+        angle: 0,
+        tint: 0x993300,
+        debug: true
+    });
+    var goal2 = new Goal({
+        x: 1340,
+        y: game.world.centerY - 3,
+        angle: 180,
+        tint: 0x003399,
+        debug: true
+    });
+
+
+    // PLAYER CARS
+
+    player1 = new Player({
         x: 300,
         y: 490
     }, game.input.gamepad.pad1);
 
-    player2 = new Car({
+    player2 = new Player({
         x: 900,
         y: 490
     }, game.input.gamepad.pad2);
+
+    ball = new Ball();
+
+    // UI
 
     indicator1 = game.add.sprite(32, 64, 'controller-indicator');
     indicator1.scale.x = indicator1.scale.y = 2;
@@ -83,17 +113,6 @@ function create() {
     indicator2.scale.x = indicator2.scale.y = 2;
     indicator2.animations.frame = 1;
 
-    // Ball
-    ball = game.add.sprite(700, 490, 'ball');
-    ball.scale.setTo(1, 1);
-    game.physics.p2.enable(ball, true);
-
-    ball.body.clearShapes();
-    ball.body.addCircle(28);
-
-    ball.body.mass = 0.1;
-    ball.body.damping = 0.3;
-    ball.body.angularDamping = 0.3;
 
     // Collisions
     var ballMaterial = game.physics.p2.createMaterial('ballMaterial', ball.body);
@@ -103,41 +122,7 @@ function create() {
     var ballVsWorld = game.physics.p2.createContactMaterial(ballMaterial, worldMaterial);
 
     ballVsWorld.friction = 1.0;
-    ballVsWorld.restitution = 0.75;
-    
-    goal1 = this.game.add.sprite(64,game.world.centerY,'goal');
-    goal1.anchor.setTo(0.5,0.5)
-    game.physics.p2.enable(goal1, true);
-    goal1.body.clearShapes();
-    goal1.body.loadPolygon('goal', 'goal');
-
-    goal1.body.static = true;
-
-    // Boost Meter
-    bmd = this.game.add.bitmapData(300, 40);
-    bmd.ctx.beginPath();
-    bmd.ctx.rect(0, 0, 300, 80);
-    bmd.ctx.fillStyle = '#00181e';
-    bmd.ctx.fill();
-
-    bgBoost = this.game.add.sprite(170, 30, bmd);
-    bgBoost.fixedToCamera = true;
-    bgBoost.anchor.set(0.5);
-
-    bmd = this.game.add.bitmapData(280, 30);
-    bmd.ctx.beginPath();
-    bmd.ctx.rect(0, 0, 300, 80);
-    bmd.ctx.fillStyle = '#AF0035';
-    bmd.ctx.fill();
-
-    widthBoost = new Phaser.Rectangle(0, 0, bmd.width, bmd.height);
-    totalBoost = bmd.width;
-
-    boostMeter = this.game.add.sprite(170 - bgBoost.width / 2 + 10, 30, bmd);
-    boostMeter.fixedToCamera = true;
-    boostMeter.anchor.y = 0.5;
-    boostMeter.cropEnabled = true;
-    boostMeter.crop(widthBoost);
+    ballVsWorld.restitution = 0.4;
 
 }
 
@@ -171,17 +156,17 @@ function update() {
 
 function render() {
 
-    game.debug.text("Thrust: " + player1.thrust, 32, 32);
-    game.debug.text("Rotation: " + player1.car.rotation, 32, 64);
-    game.debug.text("EndRotation: " + player1.kickEndRotation, 32, 84);
-    game.debug.text("RotationDirection: " + player1.rotationDirection, 32, 104);
+    // game.debug.text("Thrust: " + player1.thrust, 32, 32);
+    // game.debug.text("Rotation: " + player1.car.rotation, 32, 64);
+    // game.debug.text("EndRotation: " + player1.kickEndRotation, 32, 84);
+    // game.debug.text("RotationDirection: " + player1.rotationDirection, 32, 104);
 
-    game.debug.text("RotationDirection: " + player1.rotationDirection, 32, 804);
-    game.debug.text("RotationDirection: " + player1.rotationDirection, 32, 834);
+    // game.debug.text("RotationDirection: " + player1.rotationDirection, 32, 804);
+    // game.debug.text("RotationDirection: " + player1.rotationDirection, 32, 834);
 
 }
 
-function Car(startPosition, controller) {
+function Player(startPosition, controller) {
 
 
     this.soundMaxVolume = 1.0;
@@ -258,7 +243,7 @@ function Car(startPosition, controller) {
             this.rotationSpeed = 50;
             this.rotationDirection = 1;
         }
-        if (this.controller.isDown(Phaser.Gamepad.XBOX360_LEFT_TRIGGER)) {
+        if (this.controller.isDown(Phaser.Gamepad.XBOX360_X)) {
             if (!this.isKicking && this.rotationDirection != 0) {
                 this.isKicking = true;
                 if (this.rotationDirection < 0) {
@@ -299,7 +284,7 @@ function Car(startPosition, controller) {
                 this.totalBoost = this.totalBoost; // -1;
                 //this.boostMeter.width = this.totalBoost;
                 isBoosting = true;
-                this.thrust = 2000;
+                this.thrust = 1000;
             }
         } else {
             this.boostSound.fadeOut(250);
@@ -312,8 +297,87 @@ function Car(startPosition, controller) {
             }
             this.car.body.thrust(this.thrust)
         };
+
+        if (this.controller.isDown(Phaser.Gamepad.XBOX360_LEFT_TRIGGER)) {
+            if (this.engineSound.volume < this.soundMaxVolume) {
+                this.engineSound.volume = 0.5;
+            }
+            this.car.body.reverse(this.thrust)
+        };
+
+        // Add rotation
         this.car.body.rotateRight(this.rotationSpeed * this.rotationDirection);
 
 
     }
+}
+
+function Goal(config) {
+
+    this.goalArea = game.add.sprite(config.x, config.y, 'goalArea',true);
+
+    game.physics.p2.enable(this.goalArea, config.debug);
+
+    this.goalArea.anchor.setTo(0.5, 0.5);
+    this.goalArea.tint = config.tint;
+    this.goalArea.alpha = 0.5;
+
+    this.goalArea.body.static = true;
+
+    this.goalPosts = game.add.sprite(config.x, config.y, 'goalPosts', true);
+    this.goalPosts.tint = config.tint;
+
+    game.physics.p2.enable(this.goalPosts, config.debug);
+    this.goalPosts.body.clearShapes();
+    this.goalPosts.body.loadPolygon('goalPosts', 'goalPosts');
+    this.goalPosts.body.static = true;
+    this.goalPosts.anchor.setTo(0.5, 0.5);
+    this.goalPosts.body.angle = config.angle;
+
+}
+
+function Ball(config) {
+
+    // Ball
+
+    this.ball = game.add.sprite(700, 490, 'ball');
+    this.ball.scale.setTo(1, 1);
+    game.physics.p2.enable(this.ball, true);
+
+    this.ball.body.clearShapes();
+    this.ball.body.addCircle(28);
+
+    this.ball.body.mass = 0.1;
+    this.ball.body.damping = 0.3;
+    this.ball.body.angularDamping = 0.3;
+}
+
+function BoostMeter(config) {
+    // Boost Meter
+    bmd = this.game.add.bitmapData(300, 40);
+    bmd.ctx.beginPath();
+    bmd.ctx.rect(0, 0, 300, 80);
+    bmd.ctx.fillStyle = '#00181e';
+    bmd.ctx.fill();
+
+    bgBoost = this.game.add.sprite(170, 30, bmd);
+    bgBoost.fixedToCamera = true;
+    bgBoost.anchor.set(0.5);
+
+    bmd = this.game.add.bitmapData(280, 30);
+    bmd.ctx.beginPath();
+    bmd.ctx.rect(0, 0, 300, 80);
+    bmd.ctx.fillStyle = '#AF0035';
+    bmd.ctx.fill();
+
+    widthBoost = new Phaser.Rectangle(0, 0, bmd.width, bmd.height);
+    totalBoost = bmd.width;
+
+    boostMeter = this.game.add.sprite(170 - bgBoost.width / 2 + 10, 30, bmd);
+    boostMeter.fixedToCamera = true;
+    boostMeter.anchor.y = 0.5;
+    boostMeter.cropEnabled = true;
+    boostMeter.crop(widthBoost);
+
+    return this;
 }
