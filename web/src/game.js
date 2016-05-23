@@ -1,6 +1,3 @@
-
-
-
 var game = new Phaser.Game(1400, 980, Phaser.AUTO, 'phaser-example', {
     preload: preload,
     create: create,
@@ -13,11 +10,13 @@ WebFontConfig = {
     //  'active' means all requested fonts have finished loading
     //  We set a 1 second delay before calling 'createText'.
     //  For some reason if we don't the browser cannot render the text the first time it's created.
-    active: function() { game.time.events.add(Phaser.Timer.SECOND*2, addUI, this); },
+    active: function() {
+        game.time.events.add(Phaser.Timer.SECOND, addUI, this);
+    },
 
     //  The Google Fonts we want to load (specify as many as you like in the array)
     google: {
-      families: ['Revalia']
+        families: ['Revalia']
     }
 
 };
@@ -69,7 +68,7 @@ var player1Start = {
 }
 var player2Start = {
     x: 900,
-    y: 388
+    y: 488
 }
 
 var players = [player1, player2];
@@ -119,14 +118,16 @@ function create() {
         y: game.world.centerY - 3,
         angle: 0,
         tint: 0x992200,
-        debug: false
+        debug: false,
+        name: "goal1"
     });
     goal2 = new Goal({
         x: 1340,
         y: game.world.centerY - 3,
         angle: 180,
         tint: 0x002277,
-        debug: false
+        debug: false,
+        name: "goal2"
     });
 
 
@@ -395,6 +396,7 @@ function Player(startPosition, controller) {
 function Goal(config) {
 
     this.goalArea = game.add.sprite(config.x, config.y, 'goalArea', true);
+    this.goalArea.name = config.name;
 
     game.physics.p2.enable(this.goalArea, config.debug);
 
@@ -404,7 +406,7 @@ function Goal(config) {
 
     this.goalArea.body.static = true;
     this.goalArea.body.clearShapes();
-    this.goalArea.body.addRectangle(14, 188, 0);
+    this.goalArea.body.addRectangle(14, 168, 0);
 
     this.goalPosts = game.add.sprite(config.x, config.y, 'goalPosts', true);
     this.goalPosts.tint = config.tint;
@@ -471,7 +473,13 @@ function BoostMeter(config) {
 function ScoreGoal(a, b) {
     ball.visible = false;
 
-    console.log(b);
+    if (a.sprite.name === "goal1") {
+        player2Score.text = parseInt(player2Score.text) + 1;
+    }
+    if (a.sprite.name === "goal2") {
+        player1Score.text = parseInt(player1Score.text) + 1;
+    }
+
 
     game.add.tween(b.sprite.scale).to({
         x: 8,
@@ -523,13 +531,32 @@ function ResetGame() {
 
 }
 
-function addUI(){
-    createText({x:100,y:0,txt:"P1:",color:'#FF4444'});
-    createText({x:1020,y:0,txt:"P2:",color:'#4444FF'});
+function addUI() {
+    createText({
+        x: 100,
+        y: 0,
+        txt: "P1:",
+        color: '#FF4444'
+    });
+    createText({
+        x: 1020,
+        y: 0,
+        txt: "P2:",
+        color: '#4444FF'
+    });
 
-    player1Score = createText({x:200,y:0,txt:"0",color:'#FF4444'});
-    player2Score = createText({x:1150,y:0,txt:"0",color:'#4444FF'});
-    console.log(player1Score);  
+    player1Score = createText({
+        x: 200,
+        y: 0,
+        txt: "0",
+        color: '#FF4444'
+    });
+    player2Score = createText({
+        x: 1150,
+        y: 0,
+        txt: "0",
+        color: '#4444FF'
+    });
 
 }
 
@@ -543,7 +570,7 @@ function createText(data) {
 
     //  x0, y0 - x1, y1
     this.grd = this.text.context.createLinearGradient(0, 0, 0, this.text.canvas.height);
-    this.grd.addColorStop(0, data.color);   
+    this.grd.addColorStop(0, data.color);
     this.grd.addColorStop(1, data.color);
     this.text.fill = this.grd;
 
