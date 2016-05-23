@@ -1,9 +1,26 @@
+
+
+
 var game = new Phaser.Game(1400, 980, Phaser.AUTO, 'phaser-example', {
     preload: preload,
     create: create,
     update: update,
     render: render
 });
+
+WebFontConfig = {
+
+    //  'active' means all requested fonts have finished loading
+    //  We set a 1 second delay before calling 'createText'.
+    //  For some reason if we don't the browser cannot render the text the first time it's created.
+    active: function() { game.time.events.add(Phaser.Timer.SECOND*2, addUI, this); },
+
+    //  The Google Fonts we want to load (specify as many as you like in the array)
+    google: {
+      families: ['Revalia']
+    }
+
+};
 
 function preload() {
 
@@ -23,6 +40,8 @@ function preload() {
     this.game.load.physics('goalPosts', 'assets/physics/goalPosts.json');
 
     game.load.spritesheet('controller-indicator', 'assets/sprites/controller-indicator.png', 16, 16);
+
+    game.load.script('webfont', '//ajax.googleapis.com/ajax/libs/webfont/1.4.7/webfont.js');
 }
 
 var pad1;
@@ -33,6 +52,25 @@ var indicator2;
 
 var player1;
 var player2;
+
+var player1Score;
+var player2Score;
+
+var goal1;
+var goal2;
+
+var ball;
+
+var em;
+
+var player1Start = {
+    x: 500,
+    y: 488
+}
+var player2Start = {
+    x: 900,
+    y: 388
+}
 
 var players = [player1, player2];
 
@@ -60,6 +98,7 @@ function create() {
     game.world.setBounds(0, 0, 1400, 980);
 
     game.physics.startSystem(Phaser.Physics.P2JS);
+    game.physics.p2.setImpactEvents(true);
 
     field = game.add.tileSprite(0, 0, 1400, 980, 'field');
     field.fixedToCamera = true;
@@ -69,39 +108,84 @@ function create() {
     game.physics.p2.restitution = 0.8;
 
     playerCollisionGroup = game.physics.p2.createCollisionGroup();
-    goalCollisionGroup = game.physics.p2.createCollisionGroup();
+    goalAreaCollisionGroup = game.physics.p2.createCollisionGroup();
+    goalPostsCollisionGroup = game.physics.p2.createCollisionGroup();
+    ballCollisionGroup = game.physics.p2.createCollisionGroup();
 
     // GOALS
 
-    var goal1 = new Goal({
+    goal1 = new Goal({
         x: 60,
         y: game.world.centerY - 3,
         angle: 0,
-        tint: 0x993300,
-        debug: true
+        tint: 0x992200,
+        debug: false
     });
-    var goal2 = new Goal({
+    goal2 = new Goal({
         x: 1340,
         y: game.world.centerY - 3,
         angle: 180,
-        tint: 0x003399,
-        debug: true
+        tint: 0x002277,
+        debug: false
     });
 
 
     // PLAYER CARS
 
     player1 = new Player({
-        x: 300,
-        y: 490
+        x: player1Start.x,
+        y: player1Start.y,
+        angle: 90
     }, game.input.gamepad.pad1);
 
     player2 = new Player({
-        x: 900,
-        y: 490
+        x: player2Start.x,
+        y: player2Start.y,
+        angle: 270
     }, game.input.gamepad.pad2);
 
     ball = new Ball();
+
+    // Collision Materials
+
+    var ballMaterial = game.physics.p2.createMaterial('ballMaterial', ball.body);
+    var worldMaterial = game.physics.p2.createMaterial('worldMaterial');
+
+    game.physics.p2.setWorldMaterial(worldMaterial, true, true, true, true);
+    var ballVsWorld = game.physics.p2.createContactMaterial(ballMaterial, worldMaterial);
+
+    ballVsWorld.friction = 1.0;
+    ballVsWorld.restitution = 0.4;
+
+    // Collision Groups
+
+    player1.car.body.setCollisionGroup(playerCollisionGroup);
+    player2.car.body.setCollisionGroup(playerCollisionGroup);
+
+    ball.body.setCollisionGroup(ballCollisionGroup);
+
+    goal1.goalArea.body.setCollisionGroup(goalAreaCollisionGroup);
+    goal2.goalArea.body.setCollisionGroup(goalAreaCollisionGroup);
+
+    goal1.goalPosts.body.setCollisionGroup(goalPostsCollisionGroup);
+    goal2.goalPosts.body.setCollisionGroup(goalPostsCollisionGroup);
+
+    // // Collides
+
+    player1.car.body.collides([ballCollisionGroup, goalPostsCollisionGroup, playerCollisionGroup]);
+    player2.car.body.collides([ballCollisionGroup, goalPostsCollisionGroup, playerCollisionGroup]);
+
+    goal1.goalArea.body.collides(ballCollisionGroup, ScoreGoal, this);
+    goal2.goalArea.body.collides(ballCollisionGroup, ScoreGoal, this);
+
+    goal1.goalPosts.body.collides([ballCollisionGroup, playerCollisionGroup]);
+    goal2.goalPosts.body.collides([ballCollisionGroup, playerCollisionGroup]);
+
+    ball.body.collides([goalAreaCollisionGroup, ballCollisionGroup, playerCollisionGroup, goalPostsCollisionGroup]);
+    ball.body.collides(goalAreaCollisionGroup, ScoreGoal, this);
+
+    game.physics.p2.updateBoundsCollisionGroup();
+
 
     // UI
 
@@ -113,17 +197,22 @@ function create() {
     indicator2.scale.x = indicator2.scale.y = 2;
     indicator2.animations.frame = 1;
 
+    em = game.add.emitter(game.world.centerX, game.world.centerY, 200);
 
-    // Collisions
-    var ballMaterial = game.physics.p2.createMaterial('ballMaterial', ball.body);
-    var worldMaterial = game.physics.p2.createMaterial('worldMaterial');
+    em.makeParticles(['fire1', 'fire2', 'fire3']);
 
-    game.physics.p2.setWorldMaterial(worldMaterial, true, true, true, true);
-    var ballVsWorld = game.physics.p2.createContactMaterial(ballMaterial, worldMaterial);
+    em.minParticleSpeed.set(0, 0);
+    em.maxParticleSpeed.set(0, 0);
 
-    ballVsWorld.friction = 1.0;
-    ballVsWorld.restitution = 0.4;
+    em.setRotation(360, -360);
+    em.setAlpha(1, 0.1);
+    em.setScale(2, 1, 2, 1);
+    em.gravity = 0;
 
+    //  false means don't explode all the sprites at once, but instead release at a rate of one particle per 100ms
+    //  The 5000 value is the lifespan of each particle before it's killed
+    em.start(true, 50, 10)
+    em.on = false;
 }
 
 function update() {
@@ -143,14 +232,6 @@ function update() {
     player1.update();
     player2.update();
 
-
-    if (!game.camera.atLimit.x) {
-        field.tilePosition.x -= (car.body.velocity.x * game.time.physicsElapsed);
-    }
-
-    if (!game.camera.atLimit.y) {
-        field.tilePosition.y -= (car.body.velocity.y * game.time.physicsElapsed);
-    }
 }
 
 
@@ -168,7 +249,6 @@ function render() {
 
 function Player(startPosition, controller) {
 
-
     this.soundMaxVolume = 1.0;
     this.soundCurrentVolume = 0.0;
 
@@ -182,11 +262,12 @@ function Player(startPosition, controller) {
     this.car = game.add.sprite(startPosition.x, startPosition.y, 'car');
     this.car.scale.setTo(1, 1.5);
 
-    game.physics.p2.enable(this.car, true);
+    game.physics.p2.enable(this.car, false);
 
     this.car.body.damping = 0.9;
     this.car.body.angularDamping = 0.9;
 
+    this.car.body.angle = startPosition.angle;
     this.car.mass = 0.1;
 
     // Engine Sound
@@ -206,7 +287,6 @@ function Player(startPosition, controller) {
     this.emitter.gravity = 0;
 
     this.emitter.start(false, 250, 50);
-    this.emitter.on = false;
 
     this.thrust = 0;
     this.totalBoost = 280;
@@ -307,14 +387,14 @@ function Player(startPosition, controller) {
 
         // Add rotation
         this.car.body.rotateRight(this.rotationSpeed * this.rotationDirection);
-
-
     }
+
+    return this;
 }
 
 function Goal(config) {
 
-    this.goalArea = game.add.sprite(config.x, config.y, 'goalArea',true);
+    this.goalArea = game.add.sprite(config.x, config.y, 'goalArea', true);
 
     game.physics.p2.enable(this.goalArea, config.debug);
 
@@ -323,6 +403,8 @@ function Goal(config) {
     this.goalArea.alpha = 0.5;
 
     this.goalArea.body.static = true;
+    this.goalArea.body.clearShapes();
+    this.goalArea.body.addRectangle(14, 188, 0);
 
     this.goalPosts = game.add.sprite(config.x, config.y, 'goalPosts', true);
     this.goalPosts.tint = config.tint;
@@ -334,6 +416,8 @@ function Goal(config) {
     this.goalPosts.anchor.setTo(0.5, 0.5);
     this.goalPosts.body.angle = config.angle;
 
+    return this;
+
 }
 
 function Ball(config) {
@@ -342,7 +426,7 @@ function Ball(config) {
 
     this.ball = game.add.sprite(700, 490, 'ball');
     this.ball.scale.setTo(1, 1);
-    game.physics.p2.enable(this.ball, true);
+    game.physics.p2.enable(this.ball, false);
 
     this.ball.body.clearShapes();
     this.ball.body.addCircle(28);
@@ -350,6 +434,8 @@ function Ball(config) {
     this.ball.body.mass = 0.1;
     this.ball.body.damping = 0.3;
     this.ball.body.angularDamping = 0.3;
+
+    return this.ball;
 }
 
 function BoostMeter(config) {
@@ -380,4 +466,92 @@ function BoostMeter(config) {
     boostMeter.crop(widthBoost);
 
     return this;
+}
+
+function ScoreGoal(a, b) {
+    ball.visible = false;
+
+    console.log(b);
+
+    game.add.tween(b.sprite.scale).to({
+        x: 8,
+        y: 8
+    }, 150, Phaser.Easing.Linear.None, true);
+
+    ball.body.setCircle(500);
+    ball.body.setCollisionGroup(ballCollisionGroup);
+    ball.body.velocity.x = 0;
+    ball.body.velocity.y = 0;
+    ball.body.static = true;
+
+    game.time.events.add(Phaser.Timer.SECOND * 2, ResetGame, this);
+
+    em.x = ball.body.x;
+    em.y = ball.body.y;
+    em.on = true;
+
+}
+
+function ResetGame() {
+
+    em.on = false;
+
+    ball.body.x = 700;
+    ball.body.y = 488;
+    ball.body.static = false;
+    ball.body.angle = 0;
+
+    ball.body.mass = 0.1;
+    ball.body.damping = 0.3;
+    ball.body.angularDamping = 0.3;
+
+
+    ball.scale.setTo(1, 1);
+    ball.visible = true;
+    ball.body.setCircle(28);
+    ball.body.setCollisionGroup(ballCollisionGroup);
+
+
+    player1.car.body.x = player1Start.x;
+    player1.car.body.y = player1Start.y;
+    player1.car.body.angle = 90;
+
+    player2.car.body.x = player2Start.x;
+    player2.car.body.y = player2Start.y;
+    player2.car.body.angle = 270;
+
+
+}
+
+function addUI(){
+    createText({x:100,y:0,txt:"P1:",color:'#FF4444'});
+    createText({x:1020,y:0,txt:"P2:",color:'#4444FF'});
+
+    player1Score = createText({x:200,y:0,txt:"0",color:'#FF4444'});
+    player2Score = createText({x:1150,y:0,txt:"0",color:'#4444FF'});
+    console.log(player1Score);  
+
+}
+
+function createText(data) {
+
+    this.text = game.add.text(data.x, data.y, data.txt);
+    //this.text.anchor.setTo(0.5);
+
+    this.text.font = 'Revalia';
+    this.text.fontSize = 60;
+
+    //  x0, y0 - x1, y1
+    this.grd = this.text.context.createLinearGradient(0, 0, 0, this.text.canvas.height);
+    this.grd.addColorStop(0, data.color);   
+    this.grd.addColorStop(1, data.color);
+    this.text.fill = this.grd;
+
+    this.text.align = 'center';
+    this.text.stroke = '#000000';
+    this.text.strokeThickness = 2;
+    this.text.setShadow(5, 5, 'rgba(0,0,0,0.5)', 5);
+
+    return this.text;
+
 }
