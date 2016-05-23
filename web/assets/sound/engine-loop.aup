@@ -1,0 +1,36 @@
+<?xml version="1.0" standalone="no" ?>
+<!DOCTYPE project PUBLIC "-//audacityproject-1.3.0//DTD//EN" "http://audacity.sourceforge.net/xml/audacityproject-1.3.0.dtd" >
+<project xmlns="http://audacity.sourceforge.net/xml/" projname="engine-loop_data" version="1.3.0" audacityversion="2.1.2" sel0="0.0000000000" sel1="4.0000000000" vpos="0" h="0.0000000000" zoom="192.2500000000" rate="96000.0" snapto="off" selectionformat="hh:mm:ss + milliseconds" frequencyformat="Hz" bandwidthformat="octaves">
+	<tags>
+		<tag name="ARTIST" value="Iwan &apos;qubodup&apos; Gabovitch"/>
+		<tag name="TITLE" value="Motor Loop 1"/>
+		<tag name="YEAR" value="2012"/>
+		<tag name="COMMENTS" value="Car Type: Opel Astra 1.6_16V"/>
+	</tags>
+	<wavetrack name="engine-loop" channel="0" linked="1" mute="0" solo="0" height="150" minimized="0" isSelected="1" rate="96000" gain="1.0" pan="0.0">
+		<waveclip offset="0.00000000">
+			<sequence maxsamples="262144" sampleformat="262159" numsamples="384000">
+				<waveblock start="0">
+					<simpleblockfile filename="e000060e.au" len="262144" min="-0.993715" max="0.998565" rms="0.353079"/>
+				</waveblock>
+				<waveblock start="262144">
+					<simpleblockfile filename="e0000d10.au" len="121856" min="-0.974612" max="0.945658" rms="0.334002"/>
+				</waveblock>
+			</sequence>
+			<envelope numpoints="0"/>
+		</waveclip>
+	</wavetrack>
+	<wavetrack name="engine-loop" channel="1" linked="0" mute="0" solo="0" height="150" minimized="0" isSelected="1" rate="96000" gain="1.0" pan="0.0">
+		<waveclip offset="0.00000000">
+			<sequence maxsamples="262144" sampleformat="262159" numsamples="384000">
+				<waveblock start="0">
+					<simpleblockfile filename="e000096d.au" len="262144" min="-0.953137" max="0.935356" rms="0.333984"/>
+				</waveblock>
+				<waveblock start="262144">
+					<simpleblockfile filename="e000057d.au" len="121856" min="-0.999947" max="0.914529" rms="0.317167"/>
+				</waveblock>
+			</sequence>
+			<envelope numpoints="0"/>
+		</waveclip>
+	</wavetrack>
+</project>

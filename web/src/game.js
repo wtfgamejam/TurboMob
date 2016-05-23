@@ -10,10 +10,16 @@ function preload() {
     game.load.image('field', 'assets/background/soccer_field.jpg');
     game.load.image('car', 'assets/sprites/car.png');
     game.load.image('ball', 'assets/sprites/steel-ball.png');
+    game.load.image('goal', 'assets/sprites/goal.png');
 
     game.load.image('fire1', 'assets/particles/fire1.png');
     game.load.image('fire2', 'assets/particles/fire2.png');
     game.load.image('fire3', 'assets/particles/fire3.png');
+
+    game.load.audio('engineLoop', 'assets/sound/engine-loop.wav');
+    game.load.audio('boost', 'assets/sound/boost.wav');
+
+    this.game.load.physics('goal', 'assets/physics/goal.json');
 
     game.load.spritesheet('controller-indicator', 'assets/sprites/controller-indicator.png', 16, 16);
 }
@@ -59,14 +65,6 @@ function create() {
 
     game.input.gamepad.start();
 
-    indicator1 = game.add.sprite(32, 64, 'controller-indicator');
-    indicator1.scale.x = indicator1.scale.y = 2;
-    indicator1.animations.frame = 1;
-
-    indicator2 = game.add.sprite(1340, 64, 'controller-indicator');
-    indicator2.scale.x = indicator2.scale.y = 2;
-    indicator2.animations.frame = 1;
-
     player1 = new Car({
         x: 300,
         y: 490
@@ -77,15 +75,25 @@ function create() {
         y: 490
     }, game.input.gamepad.pad2);
 
+    indicator1 = game.add.sprite(32, 64, 'controller-indicator');
+    indicator1.scale.x = indicator1.scale.y = 2;
+    indicator1.animations.frame = 1;
+
+    indicator2 = game.add.sprite(1340, 64, 'controller-indicator');
+    indicator2.scale.x = indicator2.scale.y = 2;
+    indicator2.animations.frame = 1;
+
     // Ball
     ball = game.add.sprite(700, 490, 'ball');
-    ball.scale.setTo(0.8, 0.8);
-    game.physics.p2.enable(ball, false);
+    ball.scale.setTo(1, 1);
+    game.physics.p2.enable(ball, true);
 
     ball.body.clearShapes();
-    ball.body.addCircle(18);
+    ball.body.addCircle(28);
 
-    ball.body.mass = 0.5;
+    ball.body.mass = 0.1;
+    ball.body.damping = 0.3;
+    ball.body.angularDamping = 0.3;
 
     // Collisions
     var ballMaterial = game.physics.p2.createMaterial('ballMaterial', ball.body);
@@ -96,6 +104,14 @@ function create() {
 
     ballVsWorld.friction = 1.0;
     ballVsWorld.restitution = 0.75;
+    
+    goal1 = this.game.add.sprite(64,game.world.centerY,'goal');
+    goal1.anchor.setTo(0.5,0.5)
+    game.physics.p2.enable(goal1, true);
+    goal1.body.clearShapes();
+    goal1.body.loadPolygon('goal', 'goal');
+
+    goal1.body.static = true;
 
     // Boost Meter
     bmd = this.game.add.bitmapData(300, 40);
@@ -157,11 +173,19 @@ function render() {
 
     game.debug.text("Thrust: " + player1.thrust, 32, 32);
     game.debug.text("Rotation: " + player1.car.rotation, 32, 64);
-    // game.debug.text("EndRotation: " + kickEndRotation, 32, 84);
+    game.debug.text("EndRotation: " + player1.kickEndRotation, 32, 84);
+    game.debug.text("RotationDirection: " + player1.rotationDirection, 32, 104);
+
+    game.debug.text("RotationDirection: " + player1.rotationDirection, 32, 804);
+    game.debug.text("RotationDirection: " + player1.rotationDirection, 32, 834);
 
 }
 
 function Car(startPosition, controller) {
+
+
+    this.soundMaxVolume = 1.0;
+    this.soundCurrentVolume = 0.0;
 
     // Shadow
     this.shadow = game.add.sprite(startPosition.x, startPosition.y, 'car');
@@ -175,8 +199,17 @@ function Car(startPosition, controller) {
 
     game.physics.p2.enable(this.car, true);
 
-    this.car.body.damping = 0.99;
-    this.car.body.angularDamping = 0.95;
+    this.car.body.damping = 0.9;
+    this.car.body.angularDamping = 0.9;
+
+    this.car.mass = 0.1;
+
+    // Engine Sound
+    this.engineSound = game.add.audio('engineLoop', this.soundCurrentVolume, 1);
+    this.engineSound.play();
+
+    // Boost Sound
+    this.boostSound = game.add.audio('boost', 1);
 
     // Rocket Trail
     this.emitter = game.add.emitter(game.world.centerX, 500, 200);
@@ -195,42 +228,19 @@ function Car(startPosition, controller) {
     this.rotationSpeed = 50;
 
     this.isKicking = false;
-    this.kickDirection = 0; // 0 = left, 1 = right
+    this.rotationDirection = 0; // 1 = right, -1 = left
+    this.kickEndRotation = 0;
 
     self = this;
 
-    this.kickRight = function() {
-        if (!self.isKicking) {
-            self.kickEndRotation = (self.car.rotation) + (Math.PI * 2);
-            self.isKicking = true;
-            self.kickDirection = 1;
-        }
-    }
-
-    this.kickLeft = function() {
-        if (!self.isKicking) {
-            self.kickEndRotation = (self.car.rotation) - (Math.PI * 2);
-            self.isKicking = true;
-            self.kickDirection = 0;
-        }
-    }
-
-    this.addButtons = function() {
-        this.rightBumper = this.controller.getButton(Phaser.Gamepad.XBOX360_RIGHT_BUMPER);
-        this.leftBumper = this.controller.getButton(Phaser.Gamepad.XBOX360_LEFT_BUMPER);
-        this.rightBumper.onDown.add(this.kickRight);
-        this.leftBumper.onDown.add(this.kickLeft);
-    }
-
     this.controller = controller;
-    this.controller.addCallbacks(this, {
-        onConnect: this.addButtons
-    });
 
     this.update = function() {
 
-        this.thrust = 1000;
+        this.car.body.mass = 1;
+        this.thrust = 500;
         this.rotationSpeed = 0;
+        this.rotationDirection = 0;
         this.shadow.x = this.car.x;
         this.shadow.y = this.car.y;
         this.shadow.rotation = this.car.rotation;
@@ -240,29 +250,39 @@ function Car(startPosition, controller) {
 
         this.emitter.on = false;
 
-
-
         if (this.controller.isDown(Phaser.Gamepad.XBOX360_DPAD_LEFT) || this.controller.axis(Phaser.Gamepad.XBOX360_STICK_LEFT_X) < -0.1) {
             this.rotationSpeed = 50;
+            this.rotationDirection = -1;
         }
         if (this.controller.isDown(Phaser.Gamepad.XBOX360_DPAD_RIGHT) || this.controller.axis(Phaser.Gamepad.XBOX360_STICK_LEFT_X) > 0.1) {
-            this.rotationSpeed = -50;
+            this.rotationSpeed = 50;
+            this.rotationDirection = 1;
         }
-
-        if (this.isKicking) {
-            if (this.kickDirection === 0) {
-                if (this.car.rotation < this.kickEndRotation) {
-                    this.isKicking = false;
-                } else {
-                    this.rotationSpeed = 500;
+        if (this.controller.isDown(Phaser.Gamepad.XBOX360_LEFT_TRIGGER)) {
+            if (!this.isKicking && this.rotationDirection != 0) {
+                this.isKicking = true;
+                if (this.rotationDirection < 0) {
+                    this.kickEndRotation = (this.car.rotation) + (Math.PI * 2);
+                }
+                if (this.rotationDirection > 0) {
+                    this.kickEndRotation = (this.car.rotation) - (Math.PI * 2);
                 }
 
             }
-            if (this.kickDirection === 1) {
+        }
+
+        if (this.isKicking) {
+            this.rotationSpeed = 250;
+            this.thrust = 700;
+            this.car.body.mass = 1;
+            if (this.rotationDirection === -1) {
+                if (this.car.rotation < this.kickEndRotation) {
+                    this.isKicking = false;
+                }
+            }
+            if (this.rotationDirection === 1) {
                 if (this.car.rotation > this.kickEndRotation) {
                     this.isKicking = false;
-                } else {
-                    this.rotationSpeed = -500;
                 }
             }
         }
@@ -271,19 +291,28 @@ function Car(startPosition, controller) {
 
         if (this.controller.isDown(Phaser.Gamepad.XBOX360_A)) {
             if (this.totalBoost > 0) {
+                if (!this.boostSound.isPlaying) {
+                    this.boostSound.volume = .3;
+                    this.boostSound.play();
+                }
                 this.emitter.on = true;
                 this.totalBoost = this.totalBoost; // -1;
                 //this.boostMeter.width = this.totalBoost;
                 isBoosting = true;
                 this.thrust = 2000;
             }
+        } else {
+            this.boostSound.fadeOut(250);
         }
 
+        this.engineSound.volume = 0
         if (this.controller.isDown(Phaser.Gamepad.XBOX360_RIGHT_TRIGGER)) {
+            if (this.engineSound.volume < this.soundMaxVolume) {
+                this.engineSound.volume = 0.5;
+            }
             this.car.body.thrust(this.thrust)
-        }
-
-        this.car.body.rotateLeft(this.rotationSpeed);
+        };
+        this.car.body.rotateRight(this.rotationSpeed * this.rotationDirection);
 
 
     }
