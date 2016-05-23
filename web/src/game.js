@@ -35,8 +35,11 @@ function preload() {
 
     game.load.audio('engineLoop', 'assets/sound/engine-loop.wav');
     game.load.audio('boost', 'assets/sound/boost.wav');
+    game.load.audio('score', 'assets/sound/score.wav');
+    game.load.audio('goalCheer', 'assets/sound/goalcheer.wav');
 
     this.game.load.physics('goalPosts', 'assets/physics/goalPosts.json');
+    this.game.load.physics('carBody', 'assets/physics/carBody.json');
 
     game.load.spritesheet('controller-indicator', 'assets/sprites/controller-indicator.png', 16, 16);
 
@@ -64,11 +67,11 @@ var em;
 
 var player1Start = {
     x: 500,
-    y: 488
+    y: 484
 }
 var player2Start = {
     x: 900,
-    y: 488
+    y: 688
 }
 
 var players = [player1, player2];
@@ -136,13 +139,17 @@ function create() {
     player1 = new Player({
         x: player1Start.x,
         y: player1Start.y,
-        angle: 90
+        angle: 90,
+        color: 0xFF2200,
+        debug: false
     }, game.input.gamepad.pad1);
 
     player2 = new Player({
         x: player2Start.x,
         y: player2Start.y,
-        angle: 270
+        angle: 270,
+        color: 0x9999FF,
+        debug: false
     }, game.input.gamepad.pad2);
 
     ball = new Ball();
@@ -214,6 +221,9 @@ function create() {
     //  The 5000 value is the lifespan of each particle before it's killed
     em.start(true, 50, 10)
     em.on = false;
+
+    scoreSound = game.add.audio('score', .5);
+    goalCheerSound = game.add.audio('goalCheer', 1);
 }
 
 function update() {
@@ -255,21 +265,27 @@ function Player(startPosition, controller) {
 
     // Shadow
     this.shadow = game.add.sprite(startPosition.x, startPosition.y, 'car');
-    this.shadow.anchor.set(0.5, 0.2);
     this.shadow.tint = 0x000000;
     this.shadow.alpha = 0.8;
 
     // Car
     this.car = game.add.sprite(startPosition.x, startPosition.y, 'car');
-    this.car.scale.setTo(1, 1.5);
+    //this.car.scale.setTo(1, 1.5);
 
-    game.physics.p2.enable(this.car, false);
+    this.car.tint = startPosition.color;
+
+    game.physics.p2.enable(this.car, startPosition.debug);
+    this.car.body.clearShapes();
+    this.car.body.loadPolygon('carBody', 'carBody');
+
 
     this.car.body.damping = 0.9;
     this.car.body.angularDamping = 0.9;
 
     this.car.body.angle = startPosition.angle;
     this.car.mass = 0.1;
+
+    this.shadow.anchor.set(0.5, 0.5);
 
     // Engine Sound
     this.engineSound = game.add.audio('engineLoop', this.soundCurrentVolume, 1);
@@ -338,9 +354,11 @@ function Player(startPosition, controller) {
         }
 
         if (this.isKicking) {
-            this.rotationSpeed = 250;
+            this.rotationSpeed = 400;
             this.thrust = 700;
-            this.car.body.mass = 1;
+            this.car.body.restitution = 0.0001;
+            ball.body.mass = 0.001;
+            this.car.body.thrust(this.thrust + 100);
             if (this.rotationDirection === -1) {
                 if (this.car.rotation < this.kickEndRotation) {
                     this.isKicking = false;
@@ -365,7 +383,7 @@ function Player(startPosition, controller) {
                 this.totalBoost = this.totalBoost; // -1;
                 //this.boostMeter.width = this.totalBoost;
                 isBoosting = true;
-                this.thrust = 1000;
+                this.car.body.thrust(this.thrust + 100);
             }
         } else {
             this.boostSound.fadeOut(250);
@@ -426,7 +444,7 @@ function Ball(config) {
 
     // Ball
 
-    this.ball = game.add.sprite(700, 490, 'ball');
+    this.ball = game.add.sprite(700, 484, 'ball');
     this.ball.scale.setTo(1, 1);
     game.physics.p2.enable(this.ball, false);
 
@@ -481,12 +499,14 @@ function ScoreGoal(a, b) {
     }
 
 
+    scoreSound.play();
+    goalCheerSound.play();
     game.add.tween(b.sprite.scale).to({
         x: 8,
         y: 8
     }, 150, Phaser.Easing.Linear.None, true);
 
-    ball.body.setCircle(500);
+    ball.body.setCircle(400);
     ball.body.setCollisionGroup(ballCollisionGroup);
     ball.body.velocity.x = 0;
     ball.body.velocity.y = 0;
@@ -539,20 +559,20 @@ function addUI() {
         color: '#FF4444'
     });
     createText({
-        x: 1020,
+        x: 1100,
         y: 0,
         txt: "P2:",
         color: '#4444FF'
     });
 
     player1Score = createText({
-        x: 200,
+        x: 210,
         y: 0,
         txt: "0",
         color: '#FF4444'
     });
     player2Score = createText({
-        x: 1150,
+        x: 1240,
         y: 0,
         txt: "0",
         color: '#4444FF'
