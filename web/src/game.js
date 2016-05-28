@@ -7,14 +7,10 @@ var game = new Phaser.Game(1400, 980, Phaser.AUTO, 'phaser-example', {
 
 WebFontConfig = {
 
-    //  'active' means all requested fonts have finished loading
-    //  We set a 1 second delay before calling 'createText'.
-    //  For some reason if we don't the browser cannot render the text the first time it's created.
     active: function() {
         game.time.events.add(Phaser.Timer.SECOND, addUI, this);
     },
 
-    //  The Google Fonts we want to load (specify as many as you like in the array)
     google: {
         families: ['Revalia']
     }
@@ -71,7 +67,7 @@ var player1Start = {
 }
 var player2Start = {
     x: 900,
-    y: 688
+    y: 484
 }
 
 var players = [player1, player2];
@@ -533,12 +529,10 @@ function ResetGame() {
     ball.body.damping = 0.3;
     ball.body.angularDamping = 0.3;
 
-
     ball.scale.setTo(1, 1);
     ball.visible = true;
     ball.body.setCircle(28);
     ball.body.setCollisionGroup(ballCollisionGroup);
-
 
     player1.car.body.x = player1Start.x;
     player1.car.body.y = player1Start.y;
